@@ -1,0 +1,104 @@
+name: Deploy two-hop VPN
+
+on:
+  workflow_dispatch:
+    inputs:
+      entry_host:
+        description: Public IPv4 address or DNS name of the entry VPS
+        required: true
+        type: string
+      exit_host:
+        description: Public IPv4 address or DNS name of the exit VPS
+        required: true
+        type: string
+      ssh_user:
+        description: SSH administrator on both VPSs
+        required: true
+        default: root
+        type: string
+      client_pool:
+        description: IKEv2 client IPv4 pool
+        required: true
+        default: 10.250.0.0/16
+        type: string
+      tunnel_entry_address:
+        description: Entry-side tunnel address with prefix
+        required: true
+        default: 10.253.0.2/30
+        type: string
+      tunnel_exit_address:
+        description: Exit-side tunnel address with prefix
+        required: true
+        default: 10.253.0.1/30
+        type: string
+      tunnel_port:
+        description: AmneziaWG UDP port on the exit VPS
+        required: true
+        default: '443'
+        type: string
+      route_table:
+        description: Linux policy-routing table number on the entry VPS
+        required: true
+        default: '51831'
+        type: string
+      activate:
+        description: Route the complete IKEv2 pool after staged checks pass
+        required: true
+        default: false
+        type: boolean
+      rotate_tunnel_keys:
+        description: Generate a new AmneziaWG key pair
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twohop-vpn-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ENTRY_SSH_PASSWORD: ${{ secrets.ENTRY_SSH_PASSWORD }}
+      EXIT_SSH_PASSWORD: ${{ secrets.EXIT_SSH_PASSWORD }}
+      ENTRY_HOST: ${{ inputs.entry_host }}
+      EXIT_HOST: ${{ inputs.exit_host }}
+      SSH_USER: ${{ inputs.ssh_user }}
+      CLIENT_POOL: ${{ inputs.client_pool }}
+      TUNNEL_ENTRY_ADDRESS: ${{ inputs.tunnel_entry_address }}
+      TUNNEL_EXIT_ADDRESS: ${{ inputs.tunnel_exit_address }}
+      TUNNEL_PORT: ${{ inputs.tunnel_port }}
+      ROUTE_TABLE: ${{ inputs.route_table }}
+      ACTIVATE: ${{ inputs.activate }}
+      ROTATE_TUNNEL_KEYS: ${{ inputs.rotate_tunnel_keys }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deployment transport
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass wireguard-tools
+          chmod +x scripts/*.sh scripts/remote/*
+
+      - name: Load independently verified SSH host keys
+        shell: bash
+        env:
+          VPN_KNOWN_HOSTS: ${{ secrets.VPN_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VPN_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPN_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Deploy, stage, verify, and activate
+        shell: bash
+        run: bash scripts/deploy-pair.sh

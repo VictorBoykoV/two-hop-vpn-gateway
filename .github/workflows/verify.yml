@@ -1,0 +1,69 @@
+name: Verify two-hop VPN
+
+on:
+  workflow_dispatch:
+    inputs:
+      entry_host:
+        description: Public IPv4 address or DNS name of the entry VPS
+        required: true
+        type: string
+      exit_host:
+        description: Public IPv4 address or DNS name of the exit VPS
+        required: true
+        type: string
+      ssh_user:
+        description: SSH administrator on both VPSs
+        required: true
+        default: root
+        type: string
+      client_pool:
+        description: IKEv2 client IPv4 pool
+        required: true
+        default: 10.250.0.0/16
+        type: string
+      route_table:
+        description: Linux policy-routing table number
+        required: true
+        default: '51831'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ENTRY_HOST: ${{ inputs.entry_host }}
+      EXIT_HOST: ${{ inputs.exit_host }}
+      SSH_USER: ${{ inputs.ssh_user }}
+      CLIENT_POOL: ${{ inputs.client_pool }}
+      ROUTE_TABLE: ${{ inputs.route_table }}
+      ENTRY_SSH_PASSWORD: ${{ secrets.ENTRY_SSH_PASSWORD }}
+      EXIT_SSH_PASSWORD: ${{ secrets.EXIT_SSH_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH transport
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+
+      - name: Load independently verified SSH host keys
+        shell: bash
+        env:
+          VPN_KNOWN_HOSTS: ${{ secrets.VPN_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VPN_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPN_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Verify both nodes and staged egress
+        shell: bash
+        run: bash scripts/verify-pair.sh

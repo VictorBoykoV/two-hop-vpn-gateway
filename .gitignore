@@ -1,0 +1,26 @@
+# Runtime secrets and generated VPN material
+.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.secrets
+*.conf.local
+*.sswan
+*-qr.png
+*.mobileconfig
+credentials/
+private/
+backups/
+reports/
+audit-reports/
+redacted-vps-audit.zip
+known_hosts
+*.gpg
+*.tar
+*.tar.gz
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.tmp

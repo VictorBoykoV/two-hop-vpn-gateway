@@ -1,0 +1,63 @@
+name: Force reconnect all IKEv2 clients
+
+on:
+  workflow_dispatch:
+    inputs:
+      entry_host:
+        description: Public IPv4 address or DNS name of the entry VPS
+        required: true
+        type: string
+      ssh_user:
+        description: SSH administrator on the entry VPS
+        required: true
+        default: root
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reconnect:
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ENTRY_HOST: ${{ inputs.entry_host }}
+      SSH_USER: ${{ inputs.ssh_user }}
+      ENTRY_SSH_PASSWORD: ${{ secrets.ENTRY_SSH_PASSWORD }}
+
+    steps:
+      - name: Install SSH transport
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+
+      - name: Load independently verified SSH host keys
+        shell: bash
+        env:
+          VPN_KNOWN_HOSTS: ${{ secrets.VPN_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VPN_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPN_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Restart StrongSwan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$ENTRY_HOST" =~ ^[A-Za-z0-9.-]{1,253}$ ]]
+          [[ "$SSH_USER" =~ ^[A-Za-z0-9_.-]{1,32}$ ]]
+          echo "::add-mask::$ENTRY_SSH_PASSWORD"
+          SSHPASS="$ENTRY_SSH_PASSWORD" sshpass -e ssh \
+            -o StrictHostKeyChecking=yes -o VerifyHostKeyDNS=no -o UpdateHostKeys=no -o ConnectTimeout=15 \
+            -- "$SSH_USER@$ENTRY_HOST" '
+              set -Eeuo pipefail
+              before=$(ipsec statusall | awk "/ESTABLISHED/ {count++} END {print count+0}")
+              systemctl restart strongswan-starter.service
+              systemctl is-active --quiet strongswan-starter.service
+              after=$(ipsec statusall | awk "/ESTABLISHED/ {count++} END {print count+0}")
+              printf "sessions_before=%s\nsessions_after=%s\n" "$before" "$after"
+            '

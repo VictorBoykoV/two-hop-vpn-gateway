@@ -1,0 +1,65 @@
+name: Audit VPS pair
+
+on:
+  workflow_dispatch:
+    inputs:
+      entry_host:
+        description: Public IPv4 address or DNS name of the entry VPS
+        required: true
+        type: string
+      exit_host:
+        description: Public IPv4 address or DNS name of the exit VPS
+        required: true
+        type: string
+      ssh_user:
+        description: SSH administrator on both VPSs
+        required: true
+        default: root
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ENTRY_HOST: ${{ inputs.entry_host }}
+      EXIT_HOST: ${{ inputs.exit_host }}
+      SSH_USER: ${{ inputs.ssh_user }}
+      ENTRY_SSH_PASSWORD: ${{ secrets.ENTRY_SSH_PASSWORD }}
+      EXIT_SSH_PASSWORD: ${{ secrets.EXIT_SSH_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH transport
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+
+      - name: Load independently verified SSH host keys
+        shell: bash
+        env:
+          VPN_KNOWN_HOSTS: ${{ secrets.VPN_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VPN_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPN_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Collect redacted reports
+        shell: bash
+        run: bash scripts/audit-pair.sh
+
+      - name: Upload redacted audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: redacted-vps-audit
+          path: audit-reports/
+          retention-days: 1
+          if-no-files-found: error
