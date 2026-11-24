@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://rookstride.com"><img src="docs/assets/rookstride/rook.svg" width="52" alt="Rookstride"></a><br>
-  <a href="https://rookstride.com">Rookstride setup options</a> ·
+  <a href="https://rookstride.com/start">Rookstride setup options</a> ·
   <a href="https://github.com/VictorBoykoV/rookstride/releases">Android releases</a>
 </p>
 
@@ -36,7 +36,9 @@ Two-Hop VPN Gateway is a provider- and location-neutral reference implementation
 
 The repository contains no deployment hostnames, public addresses, usernames, passwords, certificates, keys, provider names, or country assumptions. Keep real deployments and their workflow histories private.
 
-Rookstride offers its own [browser, Android and assistant setup options](https://rookstride.com). The scripts in this repository use an IKEv2 client connection and an AmneziaWG 3.1 backhaul. For historical app-bundled results, see the [integration review](docs/MOBILE-INTEGRATION.md).
+Rookstride offers a public browser workspace, an Android app and a local
+assistant connector. The scripts in this repository use an IKEv2 client
+connection and an AmneziaWG 3.1 backhaul. [Setup options](https://rookstride.com/start) · [Browser workspace](https://web.rookstride.com/) · [Historical mobile integration review](docs/MOBILE-INTEGRATION.md)
 
 ## Why two hops?
 
